@@ -1,0 +1,64 @@
+# name: ci
+# on:
+#     push:
+#         branches: [ main ]
+#     pull_request:
+#         branches: [ main ]
+
+
+# jobs:
+#   build-and-test:
+#     runs-on: ubuntu-latest
+#     steps:
+#     - uses: actions/checkout@v4
+#     - uses: actions/setup-go@v5
+#       with:
+#         go-version: '1.22.x'
+#     - name: Tidy
+#       run: go mod tidy
+#     - name: Vet
+#       run: go vet ./...
+#     - name: Test
+#       run: go test ./... -race -count=1
+#     - name: Build
+#       run: go build ./cmd/server
+
+name: ci
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+
+      - name: Tidy
+        run: go mod tidy
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test (race)
+        run: go test ./... -race -count=1
+
+      - name: Build with ldflags
+        shell: bash
+        run: |
+          GO_MODULE=$(go list -m)
+          GIT_COMMIT=$(git rev-parse --short HEAD)
+          GIT_TAG=$(git describe --tags --always --dirty)
+          BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          LDFLAGS="-X '${GO_MODULE}/internal/buildinfo.Version=${GIT_TAG}' -X '${GO_MODULE}/internal/buildinfo.Commit=${GIT_COMMIT}' -X '${GO_MODULE}/internal/buildinfo.BuildTime=${BUILD_TIME}'"
+          go build -trimpath -ldflags "$LDFLAGS" ./cmd/server
