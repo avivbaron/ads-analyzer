@@ -48,7 +48,7 @@ docker-run: docker ## run docker image
 	docker run --name ads-analyzer --rm -p 8080:8080 -e LOG_LEVEL=info ads-analyzer:latest
 
 compose-up: ## docker compose up
-	docker compose up --build
+	docker compose up -d
 
 compose-down: ## docker compose down
 	docker compose down
