@@ -1,3 +1,0 @@
-{"level":"info","addr":":8080","rate_per_sec":10,"burst":20,"time":"2025-09-20T18:36:02+03:00","message":"listening"}
-{"level":"info","id":"a69deae38d8a1b89","method":"GET","path":"/api/analysis","status":200,"bytes":4904,"ip":"::1","dur":385.73,"time":"2025-09-20T18:36:14+03:00","message":"http"}
-{"level":"info","time":"2025-09-20T18:36:27+03:00","message":"server stopped"}
