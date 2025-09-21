@@ -1,224 +1,234 @@
-## ads-analyzer — ads.txt REST API (Go)
+# ads-analyzer
 
-A production-minded Go service that fetches and parses `https://<domain>/ads.txt`, counts seller (advertiser) domains, and returns a structured JSON report. Supports batch analysis, pluggable cache backends (memory, Redis), and a custom in-house per-client rate limiter. Ships with Docker, Compose, and CI.
-
-### Features
-- **Single analysis**: `GET /api/analysis?domain=msn.com`
-- **Batch analysis**: `POST /api/batch-analysis` with `{ "domains": ["msn.com", "cnn.com"] }`
-- **Robust parsing**: ignores comments/directives, handles inline `#`, trims whitespace
-- **Pluggable cache**: memory (default) or Redis (via env), JSON-encoded entries, TTL
-- **Rate limiting**: custom token-bucket per IP or `X-API-Key` (no external libs)
-- **Time-bounded fetch**: HTTPS first, optional HTTP fallback, redirect-safe
-- **Prod bits**: structured logs, graceful shutdown, Dockerfile, docker-compose, GitHub Actions CI
-
-### Quickstart
-# ads-analyzer — ads.txt REST API (Go)
-
-A production-minded Go service that fetches and parses `https://<domain>/ads.txt`, counts seller (advertiser) domains, and returns a structured JSON report. Supports **batch analysis**, **pluggable cache** (memory/Redis), custom **rate limiting**, and **Prometheus metrics**.
+A small, production‑ready Go (1.24) service that analyzes `ads.txt` files for one or many domains. It returns advertiser domains and their counts, supports batch analysis, pluggable caching (memory/Redis), per‑client rate limiting, Prometheus metrics, structured/rotating logs, health/readiness probes, and build metadata via `/version`.
 
 ---
 
-## ✨ Features
-- **Single analysis**: `GET /api/analysis?domain=msn.com`
-- **Batch analysis**: `POST /api/batch-analysis` with `{ "domains": ["msn.com", "cnn.com"] }`
-- **Robust parser**: ignores comments/directives, strips inline `#`, normalizes domains
-- **Caching**: memory (default) or Redis; JSON-encoded entries with TTL
-- **Custom rate limiting**: per IP or `X-API-Key` (token bucket; no external limiter libs)
-- **Observability**: structured logs (stdout/file), Prometheus `/metrics`, health `/healthz`, readiness `/readyz`
-- **Docker & CI**: Dockerfile, docker-compose, GitHub Actions
+## Quick start
 
----
+### Requirements
+- **Go 1.24**
+- Docker 24+ (optional, for containerized runs)
+- Redis 7+ (optional, when using the Redis cache backend)
+- GNU Make (optional; you can run the raw commands instead)
 
-## 📦 Requirements
-- **Go**: 1.22+
-- **Network**: outbound HTTPS/HTTP to fetch `ads.txt`
-- **Optional**: Docker & Docker Compose (if running via containers)
-- **Optional**: Redis 7+ (if `CACHE_BACKEND=redis`)
-
----
-
-## ⚙️ Configuration (env vars)
-| Var | Default | Description |
-|---|---|---|
-| `PORT` | `8080` | HTTP listen port |
-| `LOG_LEVEL` | `info` | `debug|info|warn|error` |
-| `LOG_OUTPUT` | `stdout` | `stdout|file|both` |
-| `LOG_FILE_PATH` | `./logs/ads-analyzer.log` | log file when `file`/`both` |
-| `LOG_FILE_MAX_SIZE` | `50` | rotate size (MB) |
-| `LOG_FILE_MAX_BACKUPS` | `5` | rotated file count |
-| `LOG_FILE_MAX_AGE` | `28` | days to keep |
-| `LOG_FILE_COMPRESS` | `true` | gzip rotated logs |
-| `FETCH_TIMEOUT` | `5s` | ads.txt fetch timeout |
-| `HTTP_FALLBACK` | `true` | try `http://` if `https://` fails |
-| `CACHE_BACKEND` | `memory` | `memory|redis` |
-| `CACHE_TTL` | `10m` | default TTL for cached results |
-| `REDIS_ADDR` | `127.0.0.1:6379` | Redis address |
-| `REDIS_PASSWORD` | `` | Redis password |
-| `REDIS_DB` | `0` | Redis DB index |
-| `RATE_PER_SEC` | `10` | allowed requests/sec per client |
-| `RATE_BURST` | `20` | token bucket burst size |
-| `BATCH_WORKERS` | `8` | worker pool size for batch endpoint |
-| `METRICS_ENABLED` | `true` | expose `/metrics` |
-
-Copy `.env.example` to `.env` and edit as needed.
-
----
-
-## ▶️ Run locally
-
-### macOS / Linux (bash/zsh)
+### Clone & run (memory cache)
 ```bash
-# from repo root
-export LOG_LEVEL=debug PORT=8080
-export CACHE_BACKEND=memory CACHE_TTL=10m
-go run ./cmd/server
+# from the project root
+LOG_LEVEL=info PORT=8080 go run ./cmd/server
 ```
-
-### Windows — PowerShell
-```powershell
-$env:LOG_LEVEL="debug"; $env:PORT="8080";
-$env:CACHE_BACKEND="memory"; $env:CACHE_TTL="10m";
-go run ./cmd/server
-```
-
-### Windows — cmd.exe
-```bat
-set LOG_LEVEL=debug
-set PORT=8080
-set CACHE_BACKEND=memory
-set CACHE_TTL=10m
-go run .\cmd\server
-```
-
----
-
-## 🐳 Run with Docker
+Now:
 ```bash
-docker build -t ads-analyzer:latest .
-docker run --rm -p 8080:8080 \
-  -e LOG_LEVEL=info -e CACHE_BACKEND=memory \
-  ads-analyzer:latest
+curl -s http://localhost:8080/health | jq        # {"status":"ok"}
+curl -s http://localhost:8080/ready  | jq        # {"status":"ready"}
+curl -s "http://localhost:8080/api/analysis?domain=msn.com" | jq
 ```
 
-### Docker Compose (with Redis ready)
+### Run with Redis via docker‑compose
 ```bash
-docker compose up --build
+docker compose up --build -d
+curl -s http://localhost:8080/ready | jq   # proves cache path works
 ```
-- API at `http://localhost:8080`
-- Redis at `localhost:6379` (if enabled in compose)
+
+> **Windows note**: if `-race` is troublesome locally, use WSL2 or Docker for race tests (see Testing below).
 
 ---
 
-## 🔌 API
+## Configuration
+All configuration is 12‑Factor via environment variables. `.env` is **optional** and only for local dev (missing `.env` will not crash the service).
 
-### Single domain
-```http
-GET /api/analysis?domain=msn.com
-```
-**Response 200**
-```json
-{
-  "domain": "msn.com",
-  "total_advertisers": 189,
-  "advertisers": [
-    {"domain":"google.com","count":102},
-    {"domain":"appnexus.com","count":60},
-    {"domain":"rubiconproject.com","count":27}
-  ],
-  "cached": false,
-  "timestamp": "2025-07-13T10:30:45Z"
-}
-```
+### Environment variables
+```dotenv
+# --- Server ---
+PORT=8080
+LOG_LEVEL=info                     # debug|info|warn|error
 
-### Batch
-```http
-POST /api/batch-analysis
-Content-Type: application/json
+# --- Logging ---
+LOG_OUTPUT=stdout                  # stdout|file|both
+LOG_FILE_PATH=./logs/ads-analyzer.log
+LOG_FILE_MAX_SIZE=50               # MB
+LOG_FILE_MAX_BACKUPS=5
+LOG_FILE_MAX_AGE=28                # days
+LOG_FILE_COMPRESS=true
 
-{"domains":["msn.com","cnn.com","vidazoo.com"]}
-```
-**Response 200**
-```json
-{"results": [ /* one AnalysisResult per domain, in order */ ]}
-```
+# --- Metrics ---
+METRICS_ENABLED=true               # expose /metrics
 
-### Status codes
-- `200` OK — success
-- `400` Bad Request — missing/invalid domain
-- `404` Not Found — `ads.txt` not found
-- `429` Too Many Requests — rate limit exceeded
-- `502` Bad Gateway — upstream/network error
-- `504` Gateway Timeout — fetch timeout
+# --- Fetcher ---
+FETCH_TIMEOUT=5s                   # per request timeout
+HTTP_FALLBACK=true                 # try http:// if https:// fails
+
+# --- Cache ---
+CACHE_BACKEND=memory               # memory|redis
+CACHE_TTL=10m
+# Redis (only when CACHE_BACKEND=redis)
+REDIS_ADDR=127.0.0.1:6379
+REDIS_PASSWORD=
+REDIS_DB=0
+
+# --- Rate limit (token bucket per client) ---
+RATE_PER_SEC=10
+RATE_BURST=20
+
+# --- Batch ---
+BATCH_WORKERS=8
+```
+See `.env.example` for a curated example.
 
 ---
 
-## 📈 Observability
-- **Metrics (Prometheus)**: `GET /metrics`
-  - `http_requests_total{method,path,status}`
-  - `http_request_duration_seconds{method,path,status}`
-  - `cache_hits_total{op}`, `cache_misses_total{op}`
-  - `fetch_duration_seconds{scheme}`
-  - `rate_limit_blocks_total{path}`
-- **Health**: `GET /health` (liveness)
-- **Readiness**: `GET /ready` (cache Set/Get/Delete round-trip)
+## Endpoints
+- `GET /health` → `{ "status": "ok" }` (liveness)
+- `GET /ready`  → `{ "status": "ready" }` after cache round‑trip (readiness)
+- `GET /metrics` → Prometheus metrics (enabled when `METRICS_ENABLED=true`)
+- `GET /version` → build metadata `{ version, commit, build_time, go }`
+- `GET /api/analysis?domain=<domain>` → single domain result
+- `POST /api/batch-analysis` `{ "domains": ["msn.com","cnn.com"] }` → results array
 
-Prometheus scrape example:
+Example batch call (bash):
+```bash
+curl -s -X POST http://localhost:8080/api/batch-analysis \
+  -H 'Content-Type: application/json' \
+  -d '{"domains":["msn.com","cnn.com","vidazoo.com"]}' | jq
+```
+
+---
+
+## Observability
+- **Logs**: zerolog JSON to stdout and/or file (with rotation via lumberjack).
+  - File logging example:
+    ```bash
+    LOG_OUTPUT=both LOG_FILE_PATH=./logs/ads-analyzer.log go run ./cmd/server
+    ```
+- **Metrics**: Prometheus client (`/metrics`) with request/latency, cache hits/misses, fetch durations, and rate‑limit blocks.
+- **Build info**: `/version` shows the git tag/commit/build time baked at build time.
+
+### Rate‑limit demo
+```bash
+RATE_PER_SEC=1 RATE_BURST=1 go run ./cmd/server &
+# First request → 200
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/health
+# Immediate second → 429
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/health
+# Metric increments
+curl -s http://localhost:8080/metrics | grep rate_limit_blocks_total
+```
+
+---
+
+## Build metadata (/version) in Docker & Compose
+The Dockerfile computes the Go module path inside the build container and injects metadata via ldflags.
+
+**Dockerfile args**: `VERSION`, `COMMIT`, `BUILD_TIME`.
+
+### Docker (manual)
+```bash
+VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo dev)
+COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo none)
+BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+docker build \
+  --build-arg VERSION="$VERSION" \
+  --build-arg COMMIT="$COMMIT" \
+  --build-arg BUILD_TIME="$BUILD_TIME" \
+  -t ads-analyzer:latest .
+
+docker run --rm -p 8080:8080 ads-analyzer:latest
+curl -s http://localhost:8080/version | jq
+```
+
+### docker‑compose
+`docker-compose.yml` forwards the args via environment variables:
 ```yaml
-scrape_configs:
-  - job_name: 'ads-analyzer'
-    static_configs:
-      - targets: ['host.docker.internal:8080']
+services:
+  api:
+    build:
+      context: .
+      args:
+        VERSION: ${VERSION:-dev}
+        COMMIT: ${COMMIT:-none}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
 ```
-
----
-
-## 🧪 Testing
+Export them before building:
 ```bash
-go test ./... -race
-# only cache tests
-go test ./internal/cache
-# Redis integration (skips if Redis unavailable)
-REDIS_ADDR=127.0.0.1:6379 go test ./internal/cache -run Redis -v
+export VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo dev)
+export COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo none)
+export BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+docker compose build --no-cache api && docker compose up -d
+curl -s http://localhost:8080/version | jq
 ```
 
 ---
 
-## 🧰 Makefile (handy targets)
-```makefile
-run:      ## Run locally
-	LOG_LEVEL=debug PORT=8080 go run ./cmd/server
+## Testing
 
-test:     ## Run unit tests
-	go test ./...
+### Unit tests
+```bash
+go test ./...
+```
 
-vet:      ## Go vet
-	go vet ./...
+### Race detector
+- **Linux/macOS/WSL2**:
+  ```bash
+  go test ./... -race -count=1
+  ```
+- **Windows native**: race builds require a working MinGW‑w64 toolchain and can be flaky. Prefer WSL2 or Docker for `-race`:
+  ```bash
+  docker run --rm -v ${PWD}:/src -w /src golang:1.22 \
+    bash -lc "apt-get update && apt-get install -y gcc && go test ./... -race -count=1"
+  ```
 
-tidy:     ## Go mod tidy
-	go mod tidy
-
-build:    ## Build binary
-	go build ./cmd/server
-
-docker:   ## Build container image
-	docker build -t ads-analyzer:latest .
-
-docker-run: ## Run container
-	docker run --rm -p 8080:8080 -e LOG_LEVEL=info ads-analyzer:latest
-
-compose-up: ## Up with Docker Compose
-	docker compose up --build
-
-compose-down: ## Down Compose
-	docker compose down
+### Manual checks
+```bash
+# cache behavior (memory)
+CACHE_BACKEND=memory CACHE_TTL=5s go run ./cmd/server &
+curl -s "http://localhost:8080/api/analysis?domain=msn.com" | jq   # cached=false
+curl -s "http://localhost:8080/api/analysis?domain=msn.com" | jq   # cached=true
+sleep 6
+curl -s "http://localhost:8080/api/analysis?domain=msn.com" | jq   # cached=false again
 ```
 
 ---
 
-## 🛟 Troubleshooting
-- `429 Too Many Requests`: lower your call rate or raise `RATE_PER_SEC`/`RATE_BURST`.
-- `504 Gateway Timeout`: increase `FETCH_TIMEOUT` or check target site availability.
-- Empty results: ensure the target serves a valid `ads.txt` and your network allows outbound HTTP(S).
-- Redis backend: confirm `REDIS_ADDR` reachable; try `redis-cli -h 127.0.0.1 -p 6379 PING`.
+## Makefile targets (optional)
+- `tidy` — `go mod tidy`
+- `vet` — `go vet ./...`
+- `test` — `go test ./...`
+- `race` — `go test ./... -race -count=1`
+- `build` — build binary with ldflags → `./bin/ads-analyzer`
+- `run` — run with ldflags
+- `docker` — docker build with VERSION/COMMIT/BUILD_TIME
+- `compose-build` — build compose service with metadata
+- `compose-up` / `compose-down`
+
+> If you don’t use Make, copy the equivalent commands shown above.
 
 ---
+
+## CI (GitHub Actions)
+- Uses `actions/setup-go@v5` with **Go 1.24.x** to match the project toolchain.
+- Steps: `tidy` → `vet` → `test -race` (Linux) → `build with ldflags`.
+- If you previously saw noisy tar cache warnings, ensure CI runs on 1.24.x (or set `GOTOOLCHAIN=local` if you intentionally stay on an older Go).
+
+---
+
+## Design highlights
+- **Transport vs domain vs infra**: HTTP concerns (handlers/middlewares) isolated from analysis logic and infra (cache, rate limit, logging, metrics).
+- **Small interfaces** (`Cache`, `Fetcher`, `Analyzer`) for testability and substitution.
+- **Token‑bucket rate limiter** (per client via API key or IP) to protect the service.
+- **Caching**: memory or Redis with the same JSON payloads.
+- **Observability**: structured logs, metrics, probes, and build info.
+
+---
+
+## Troubleshooting
+- `/version` shows `dev/none/unknown` → you built without passing build args/ldflags. Use the Docker/Compose instructions above.
+- `429 Too Many Requests` immediately → your `RATE_PER_SEC`/`RATE_BURST` are low; raise them.
+- `GET /ready` returns non‑ready → check `CACHE_BACKEND` and `REDIS_ADDR`; verify Redis is reachable.
+- Windows `-race` errors → use WSL2 or Docker for race tests.
+
+---
+
+## License
+MIT (unless otherwise noted).
