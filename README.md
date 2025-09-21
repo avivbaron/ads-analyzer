@@ -229,7 +229,3 @@ curl -s "http://localhost:8080/api/analysis?domain=msn.com" | jq   # cached=fals
 - `GET /ready` returns non‑ready → check `CACHE_BACKEND` and `REDIS_ADDR`; verify Redis is reachable.
 - Windows `-race` errors → use WSL2 or Docker for race tests.
 
----
-
-## License
-MIT (unless otherwise noted).
