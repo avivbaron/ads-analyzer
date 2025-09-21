@@ -9,16 +9,19 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"sync/atomic"
 
 	"github.com/avivbaron/ads-analyzer/internal/analysis"
 	"github.com/avivbaron/ads-analyzer/internal/models"
 	"github.com/avivbaron/ads-analyzer/internal/util"
 )
 
-type fakeAnalyzer struct{ calls int }
+type fakeAnalyzer struct{
+	calls atomic.Int64 
+}
 
 func (f *fakeAnalyzer) Analyze(ctx context.Context, domain string) (models.AnalysisResult, error) {
-	f.calls++
+	f.calls.Add(1)
 	return models.AnalysisResult{Domain: "msn.com", TotalAdvertisers: 3, Advertisers: []models.AdvertiserCount{{Domain: "google.com", Count: 2}, {Domain: "appnexus.com", Count: 1}}, Cached: false, Timestamp: time.Unix(0, 0).UTC()}, nil
 }
 
@@ -42,8 +45,8 @@ func TestHandleAnalysis_OK(t *testing.T) {
 	if out.Domain != "msn.com" || out.TotalAdvertisers != 3 {
 		t.Fatalf("bad body: %#v", out)
 	}
-	if fa.calls != 1 {
-		t.Fatalf("analyzer calls=%d", fa.calls)
+	if fa.calls.Load() != 1 {
+		t.Fatalf("analyzer calls=%d", fa.calls.Load())
 	}
 }
 
