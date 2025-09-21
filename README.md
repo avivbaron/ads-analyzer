@@ -1,4 +1,5 @@
 # ads-analyzer
+v1.0.0
 
 A small, production‑ready Go (1.24) service that analyzes `ads.txt` files for one or many domains. It returns advertiser domains and their counts, supports batch analysis, pluggable caching (memory/Redis), per‑client rate limiting, Prometheus metrics, structured/rotating logs, health/readiness probes, and build metadata via `/version`.
 
