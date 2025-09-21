@@ -1,10 +1,13 @@
 package util
 
 import (
+	"errors"
 	"net"
 	"net/url"
 	"strings"
 )
+
+var ErrBadDomain = errors.New("invalid domain")
 
 // NormalizeDomain tries to extract a bare host from inputs like
 // "msn.com", "https://msn.com", "msn.com/path", "https://msn.com/ads.txt".
@@ -36,12 +39,4 @@ func NormalizeDomain(in string) (string, error) {
 		host = h
 	}
 	return strings.TrimSuffix(host, "."), nil
-}
-
-var ErrBadDomain = &BadDomainError{}
-
-type BadDomainError struct{} // why?
-
-func (e *BadDomainError) Error() string {
-	 return "invalid domain" 
 }
