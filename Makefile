@@ -1,39 +1,3 @@
-# .PHONY: run test race vet tidy build docker docker-run compose-up compose-down fmt
-
-# run:
-# 	LOG_LEVEL=debug PORT=8080 go run ./cmd/server
-
-# test:
-# 	go test ./...
-
-# race:
-# 	go test ./... -race
-
-# vet:
-# 	go vet ./...
-
-# tidy:
-# 	go mod tidy
-
-# build:
-# 	go build ./cmd/server
-
-# docker:
-# 	docker build -t ads-analyzer:latest .
-
-# docker-run:
-# 	docker run --rm -p 8080:8080 -e LOG_LEVEL=info ads-analyzer:latest
-
-# compose-up:
-# 	docker compose up --build
-
-# compose-down:
-# 	docker compose down
-
-# fmt:
-# 	go fmt ./...
-
-# -------- ads-analyzer Makefile --------
 SHELL := bash
 
 # Discover module path dynamically (fallback if not a module yet)
@@ -77,8 +41,8 @@ build: ## build binary into ./bin
 run: ## run locally with ldflags
 	LOG_LEVEL=debug PORT=8080 go run -ldflags "$(LDFLAGS)" ./cmd/server
 
-docker: ## build docker image (passes LDFLAGS)
-	docker build --build-arg LDFLAGS="$(LDFLAGS)" -t ads-analyzer:latest .
+# docker: ## build docker image (passes LDFLAGS)
+# 	docker build --build-arg LDFLAGS="$(LDFLAGS)" -t ads-analyzer:latest .
 
 docker-run: docker ## run docker image
 	docker run --name ads-analyzer --rm -p 8080:8080 -e LOG_LEVEL=info ads-analyzer:latest
@@ -95,4 +59,20 @@ print-ldflags: ## echo computed ldflags
 clean: ## remove build artifacts
 	rm -rf bin
 
-.PHONY: clean print-ldflags help tidy fmt vet test race build run docker docker-run compose-up compose-down
+compose-build:
+	VERSION=$$(git describe --tags --always --dirty 2>/dev/null || echo dev) \
+	COMMIT=$$(git rev-parse --short HEAD 2>/dev/null || echo none) \
+	BUILD_TIME=$$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+	docker compose build --no-cache api
+
+docker:
+	VERSION=$$(git describe --tags --always --dirty 2>/dev/null || echo dev) \
+	COMMIT=$$(git rev-parse --short HEAD 2>/dev/null || echo none) \
+	BUILD_TIME=$$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+	docker build \
+	  --build-arg VERSION=$$VERSION \
+	  --build-arg COMMIT=$$COMMIT \
+	  --build-arg BUILD_TIME=$$BUILD_TIME \
+	  -t ads-analyzer:latest 
+
+.PHONY: compose-build clean print-ldflags help tidy fmt vet test race build run docker docker-run compose-up compose-down
