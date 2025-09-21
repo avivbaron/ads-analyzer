@@ -40,4 +40,3 @@ func NormalizeDomain(in string) (string, error) {
 	}
 	return strings.TrimSuffix(host, "."), nil
 }
-
