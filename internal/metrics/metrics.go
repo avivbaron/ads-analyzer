@@ -40,7 +40,9 @@ func Init(enabled bool) *Metrics {
 	return m
 }
 
-func Handler() http.Handler { return promhttp.HandlerFor(M.Registry, promhttp.HandlerOpts{}) }
+func Handler() http.Handler {
+	return promhttp.HandlerFor(M.Registry, promhttp.HandlerOpts{})
+}
 
 // helpers (safe no-ops if M==nil)
 func IncHit(op string) {

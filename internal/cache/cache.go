@@ -17,18 +17,21 @@ type Cache interface {
 }
 
 // NewFromConfig selects a backend based on cfg.CacheBackend.
-// For now, only "memory" is implemented.
 func NewFromConfig(cfg config.Config) (Cache, func(), error) {
 	switch cfg.CacheBackend {
 	case "memory":
-		mc := NewMemory(cfg.CacheTTL)
+		mc := NewMemory(MemoryOptions{
+			TTL:         cfg.CacheTTL,
+			MaxItems:    cfg.CacheMaxItems,
+			SweepMin:    cfg.CacheSweepMin,
+			SweepMax:    cfg.CacheSweepMax,
+			AutoJanitor: true, // production default; tests can turn this off
+		})
 		return mc, func() { mc.Close() }, nil
 	case "redis":
 		rc := NewRedis(cfg.RedisAddr, cfg.RedisPassword, cfg.RedisDB, cfg.CacheTTL)
 		closer := func() { _ = rc.Close() }
 		return rc, closer, nil	
-	case "file":
-		return nil, func() {}, fmt.Errorf("cache backend 'file' not implemented yet")
 	default:
 		return nil, func() {}, fmt.Errorf("unknown cache backend: %s", cfg.CacheBackend)
 	}

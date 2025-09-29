@@ -67,21 +67,36 @@ func (h *Handler) handleBatch(w http.ResponseWriter, r *http.Request) {
 		err error
 	}
 
+	workers := min(h.batchWorkers, len(req.Domains))
+
 	jobs := make(chan int)
 	out := make(chan item)
 
 	wg := sync.WaitGroup{}
 	worker := func() {
-		defer wg.Done()
-		for idx := range jobs {
-			res, err := h.analyzer.Analyze(ctx, req.Domains[idx])
-			out <- item{idx: idx, res: res, err: err}
-		}
+	    defer wg.Done()
+	    for {
+	        select {
+	        case <-ctx.Done():
+	            return
+	        default:
+	        }
+
+	        idx, ok := <-jobs
+	        if !ok {
+	            return
+	        }
+
+	        res, err := h.analyzer.Analyze(ctx, req.Domains[idx])
+
+	        select {
+	        case out <- item{idx: idx, res: res, err: err}:
+	        case <-ctx.Done():
+	            return
+	        }
+	    }
 	}
-	workers := h.batchWorkers
-	if workers > len(req.Domains) {
-		workers = len(req.Domains)
-	}
+
 	wg.Add(workers)
 	for i := 0; i < workers; i++ {
 		go worker()
@@ -89,8 +104,14 @@ func (h *Handler) handleBatch(w http.ResponseWriter, r *http.Request) {
 
 	go func() {
 		for i := range req.Domains {
-			jobs <- i
-		}
+            select {
+            case jobs <- i:
+            case <-ctx.Done():
+                close(jobs)
+                return
+            }
+        }
+
 		close(jobs)
 		wg.Wait()
 		close(out)
