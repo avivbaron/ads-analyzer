@@ -13,8 +13,7 @@ import (
 // PASS: first two requests allowed, third denied with retry>0, after 0.5s another request allowed; a different key also allowed.
 // FAIL: any of those expectations are not met.
 func TestLimiter_BasicTokenBucket(t *testing.T) {
-	base := time.Unix(0, 0)
-	now := base
+	now := time.Unix(0, 0)
 	clock := func() time.Time { return now }
 
 	lim := NewWithClock(2, 2, clock) // 2 tokens/sec, burst 2

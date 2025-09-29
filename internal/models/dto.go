@@ -18,6 +18,7 @@ type AnalysisResult struct {
 type BatchRequest struct {
 	Domains []string `json:"domains"`
 }
+
 type BatchResponse struct {
 	Results []AnalysisResult `json:"results"`
 }

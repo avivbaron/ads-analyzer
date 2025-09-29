@@ -24,7 +24,9 @@ func NewRedis(addr, password string, db int, defaultTTL time.Duration) *Redis {
 	return &Redis{cli: cli, defaultTTL: defaultTTL}
 }
 
-func (r *Redis) Close() error { return r.cli.Close() }
+func (r *Redis) Close() error {
+	return r.cli.Close()
+}
 
 func (r *Redis) Get(ctx context.Context, key string, v any) (bool, error) {
 	b, err := r.cli.Get(ctx, key).Bytes()

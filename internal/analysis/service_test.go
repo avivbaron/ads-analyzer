@@ -25,7 +25,14 @@ func (f *fakeFetcher) GetAdsTxt(ctx context.Context, domain string) ([]byte, err
 // FAIL: second call misses cache or fetcher invoked again.
 func TestService_Analyze_CachesResult(t *testing.T) {
 	ctx := context.Background()
-	mc := cache.NewMemoryWithClock(1*time.Minute, time.Now)
+	mc := cache.NewMemory(cache.MemoryOptions{
+		TTL:         time.Minute,
+		MaxItems:    0,
+		SweepMin:    time.Second,
+		SweepMax:    time.Minute,
+		AutoJanitor: false,
+		Now:         time.Now,
+	})
 	defer mc.Close()
 	ff := &fakeFetcher{data: []byte("google.com, x, DIRECT\nappnexus.com, x, DIRECT\ngoogle.com, y, RESELLER\n")}
 	svc := NewService(mc, ff, 1*time.Minute)

@@ -62,6 +62,10 @@ HTTP_FALLBACK=true                 # try http:// if https:// fails
 # --- Cache ---
 CACHE_BACKEND=memory               # memory|redis
 CACHE_TTL=10m
+CACHE_MAX_ITEMS=10000        # 0 = unlimited
+CACHE_SWEEP_MIN=500ms
+CACHE_SWEEP_MAX=2m
+
 # Redis (only when CACHE_BACKEND=redis)
 REDIS_ADDR=127.0.0.1:6379
 REDIS_PASSWORD=

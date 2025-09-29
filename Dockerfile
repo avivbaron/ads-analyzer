@@ -28,15 +28,19 @@ RUN MODULE=$(go list -m) && \
       -o /out/ads-analyzer ./cmd/server
 
 # ---- final stage ----
-FROM scratch
+# Use Alpine instead of "scratch" so we can have curl for healthchecks (and certs/tzdata preinstalled)
+FROM alpine:3.20
 
-# TLS roots & tzdata (for HTTPS requests and time ops)
-COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
-COPY --from=build /usr/share/zoneinfo /usr/share/zoneinfo
+# Install runtime dependencies and curl for healthcheck
+RUN apk add --no-cache ca-certificates tzdata curl && update-ca-certificates
 
-# binary
-COPY --from=build /out/ads-analyzer /ads-analyzer
+# Copy the binary
+COPY --from=build /out/ads-analyzer /usr/local/bin/ads-analyzer
+
+# 65532 is a common "nonroot" uid/gid used in minimal images
+USER 65532:65532
 
 EXPOSE 8080
 ENV PORT=8080
-ENTRYPOINT ["/ads-analyzer"]
+
+ENTRYPOINT ["/usr/local/bin/ads-analyzer"]

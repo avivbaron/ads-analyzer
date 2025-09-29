@@ -20,12 +20,12 @@ import (
 )
 
 func loadDotenv() {
-    // Load .env if it exists, but don't fail if it's missing.
-    if _, err := os.Stat(".env"); err == nil {
-        if err := godotenv.Load(); err != nil {
-            log.Printf("warning: couldn't load .env: %v", err)
-        }
-    }
+	// Load .env if it exists, but don't fail if it's missing.
+	if _, err := os.Stat(".env"); err == nil {
+		if err := godotenv.Load(); err != nil {
+			log.Printf("warning: couldn't load .env: %v", err)
+		}
+	}
 }
 
 func main() {
