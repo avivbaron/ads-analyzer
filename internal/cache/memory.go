@@ -61,18 +61,6 @@ func NewMemory(opt MemoryOptions) *Memory {
 	return mc
 }
 
-// NewMemoryWithClock lets tests inject a fake clock.
-func NewMemoryWithClock(ttl time.Duration, now func() time.Time) *Memory {
-	mc := &Memory{
-		m:    make(map[string]*entry),
-		ttl:  ttl,
-		now:  now,
-		stop: make(chan struct{}),
-	}
-	go mc.janitor()
-	return mc
-}
-
 func (mc *Memory) Close() {
 	close(mc.stop)
 }

@@ -34,13 +34,12 @@ services:
       # --- Cache ---
       - CACHE_BACKEND=redis
       - CACHE_TTL=10m
+      - CACHE_MAX_ITEMS=10000
+      - CACHE_SWEEP_MIN=500ms
+      - CACHE_SWEEP_MAX=2m
       - REDIS_ADDR=redis:6379
       - REDIS_PASSWORD=
       - REDIS_DB=0
-      - CACHE_SWEEP_MIN=500ms
-      - CACHE_SWEEP_MAX=2m
-      # LRU Settings
-      - CACHE_MAX_ITEMS=10000
       
       # --- Rate limit ---
       - RATE_PER_SEC=10
@@ -53,7 +52,7 @@ services:
     depends_on:
       - redis
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
       interval: 10s      
       timeout: 3s        
       retries: 3         
