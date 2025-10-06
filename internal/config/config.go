@@ -15,6 +15,9 @@ type Config struct {
 
 	CacheBackend  string        // memory|redis|file (implemented later)
 	CacheTTL      time.Duration // TTL for cached results
+	CacheMaxItems int           // 0 => unlimited (no LRU eviction)
+	CacheSweepMin time.Duration // lower bound for janitor interval
+	CacheSweepMax time.Duration // upper bound for janitor interval
 	RedisAddr     string
 	RedisPassword string
 	RedisDB       int
@@ -42,6 +45,9 @@ func Load() (Config, error) {
 
 		CacheBackend:  strings.ToLower(getenv("CACHE_BACKEND", "memory")),
 		CacheTTL:      getDurationEnv("CACHE_TTL", "10m"),
+		CacheMaxItems: getIntEnv("CACHE_MAX_ITEMS", 0),
+		CacheSweepMin: getDurationEnv("CACHE_SWEEP_MIN", "1s"),
+		CacheSweepMax: getDurationEnv("CACHE_SWEEP_MAX", "5m"),
 		RedisAddr:     getenv("REDIS_ADDR", "127.0.0.1:6379"),
 		RedisPassword: getenv("REDIS_PASSWORD", ""),
 		RedisDB:       getIntEnv("REDIS_DB", 0),
@@ -51,14 +57,14 @@ func Load() (Config, error) {
 		BatchWorkers: getIntEnv("BATCH_WORKERS", 8),
 
 		LogLevel: strings.ToLower(getenv("LOG_LEVEL", "info")),
-		
-		LogOutput: strings.ToLower(getenv("LOG_OUTPUT", "stdout")),
-		LogFilePath: getenv("LOG_FILE_PATH", "./logs/ads-analyzer.log"),
-		LogFileMaxSize: getIntEnv("LOG_FILE_MAX_SIZE", 50),
+
+		LogOutput:         strings.ToLower(getenv("LOG_OUTPUT", "stdout")),
+		LogFilePath:       getenv("LOG_FILE_PATH", "./logs/ads-analyzer.log"),
+		LogFileMaxSize:    getIntEnv("LOG_FILE_MAX_SIZE", 50),
 		LogFileMaxBackups: getIntEnv("LOG_FILE_MAX_BACKUPS", 5),
-		LogFileMaxAge: getIntEnv("LOG_FILE_MAX_AGE", 28),
-		LogFileCompress: getBoolEnv("LOG_FILE_COMPRESS", true),
-	
+		LogFileMaxAge:     getIntEnv("LOG_FILE_MAX_AGE", 28),
+		LogFileCompress:   getBoolEnv("LOG_FILE_COMPRESS", true),
+
 		MetricsEnabled: getBoolEnv("METRICS_ENABLED", true),
 	}
 
@@ -76,6 +82,12 @@ func Load() (Config, error) {
 	}
 	if c.BatchWorkers <= 0 {
 		c.BatchWorkers = 1
+	}
+	if c.CacheSweepMin <= 0 {
+		c.CacheSweepMin = time.Second
+	}
+	if c.CacheSweepMax < c.CacheSweepMin {
+		c.CacheSweepMax = c.CacheSweepMin
 	}
 	return c, nil
 }
